@@ -35,13 +35,13 @@ from collections import defaultdict
 
 
 # Host to connect to. Override in config by specifying 'Host'.
-CLC_HOST = 'localhost'
+CLC_HOST = '109.200.204.4'
 
 # Access key to use. Override in config by specifying 'AccessKey'.
-ACCESS_KEY = 'AccessKey available in eucarc'
+ACCESS_KEY = 'JCANTVFQFQS1MMKWMR10H'
 
 # Secret key to use. Override in config by specifying 'SecretKey'.
-SECRET_KEY = 'SecretKey available in eucarc'
+SECRET_KEY = 'UNkpne54iwiqAZ2UEwwo5ohdgs3IIEteIF5ozeq0'
 
 # API Version. Override in config by specifying 'ApiVersion'.
 API_VERSION = '2009-11-30'
@@ -68,9 +68,10 @@ def fetch_info():
     image=[]
     instance_type=[]
     for reservation in conn.get_all_instances():
-        if reservation.instances[0].state == 'running':
-            instance_type.append(reservation.instances[0].instance_type)
-            image.append(reservation.instances[0].image_id)
+        for i in range(len(reservation.instances)):
+            if reservation.instances[i].state == 'running':
+                instance_type.append(reservation.instances[i].instance_type)
+                image.append(reservation.instances[i].image_id)
 
     return (image, instance_type)
 

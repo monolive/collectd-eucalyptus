@@ -31,16 +31,17 @@ import collectd
 import socket
 import boto
 from boto.ec2.regioninfo import RegionInfo
+from collections import defaultdict
 
 
 # Host to connect to. Override in config by specifying 'Host'.
 CLC_HOST = 'localhost'
 
 # Access key to use. Override in config by specifying 'AccessKey'.
-ACCESS_KEY = 'Available within eucarc'
+ACCESS_KEY = 'AccessKey available in eucarc'
 
 # Secret key to use. Override in config by specifying 'SecretKey'.
-SECRET_KEY = 'Available within eucarc'
+SECRET_KEY = 'SecretKey available in eucarc'
 
 # API Version. Override in config by specifying 'ApiVersion'.
 API_VERSION = '2009-11-30'
@@ -64,11 +65,23 @@ def fetch_info():
                        % (CLC_HOST, e))
         return None
     log_verbose('Sending info command')
-    instanceType=[]
+    image=[]
+    instance_type=[]
     for reservation in conn.get_all_instances():
-        instanceType.append(reservation.instances[0].instance_type)
+        if reservation.instances[0].state == 'running':
+            instance_type.append(reservation.instances[0].instance_type)
+            image.append(reservation.instances[0].image_id)
 
-    return instanceType
+    return (image, instance_type)
+
+def count_items(items):
+    """Count instance type / images running"""
+
+    counts = defaultdict(int)
+    for item in items:
+        counts[item] += 1
+    return dict(counts)
+
 
 
 def configure_callback(conf):
@@ -108,19 +121,31 @@ def dispatch_value(info, key, type, type_instance=None):
 
 def read_callback():
     log_verbose('Read callback called')
-    info = fetch_info()
-
-    if not info:
-        collectd.error('Eucalyptus plugin: No info received')
-        return
-
-    # send high-level values
-    dispatch_value(info.count('m1.small'), 'm1.small','gauge')
-    dispatch_value(info.count('c1.medium'), 'c1.medium','gauge')
-    dispatch_value(info.count('m1.large'), 'm1.large','gauge')
-    dispatch_value(info.count('m1.xlarge'), 'm1.xlarge','gauge')
-    dispatch_value(info.count('c1.xlarge'), 'c1.xlarge','gauge')
+    (image, instance_type) = fetch_info()
     
+    if not image and not instance_type:
+        collectd.warning('Eucalyptus plugin: No info received, do you have any instances running ?')
+        return
+    
+    image = count_items(image)
+    instance_type = count_items(instance_type)
+    
+    
+    if not 'm1.small' in instance_type:
+        instance_type['m1.small'] = 0 
+    if not 'c1.medium' in instance_type:
+        instance_type['c1.medium'] = 0 
+    if not 'm1.large' in instance_type:
+        instance_type['m1.large'] = 0 
+    if not 'm1.xlarge' in instance_type:
+        instance_type['m1.xlarge'] = 0 
+    if not 'c1.xlarge' in instance_type:
+        instance_type['c1.xlarge'] = 0 
+    
+    for type in instance_type.keys():
+        dispatch_value(instance_type[type], type, 'gauge')
+    for emi in image.keys():
+        dispatch_value(image[emi], emi, 'gauge' )
 
 def log_verbose(msg):
     if not VERBOSE_LOGGING:

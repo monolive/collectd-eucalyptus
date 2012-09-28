@@ -35,13 +35,13 @@ from collections import defaultdict
 
 
 # Host to connect to. Override in config by specifying 'Host'.
-CLC_HOST = '109.200.204.4'
+CLC_HOST = 'localhost'
 
 # Access key to use. Override in config by specifying 'AccessKey'.
-ACCESS_KEY = 'JCANTVFQFQS1MMKWMR10H'
+ACCESS_KEY = 'AccessKey available from eucarc'
 
 # Secret key to use. Override in config by specifying 'SecretKey'.
-SECRET_KEY = 'UNkpne54iwiqAZ2UEwwo5ohdgs3IIEteIF5ozeq0'
+SECRET_KEY = 'SecretKey available from eucarc'
 
 # API Version. Override in config by specifying 'ApiVersion'.
 API_VERSION = '2009-11-30'
@@ -49,7 +49,7 @@ API_VERSION = '2009-11-30'
 # Verbose logging on/off. Override in config by specifying 'Verbose'.
 VERBOSE_LOGGING = False
 
-def fetch_info():
+def conn_eucalyptus():
     """Connect to Eucalyptus server and request info"""
     try:
         conn = boto.connect_ec2(aws_access_key_id=ACCESS_KEY,
@@ -60,10 +60,13 @@ def fetch_info():
                         path="/services/Eucalyptus")
         conn.APIVersion = API_VERSION
         log_verbose('Connected to Eucalytpus at %s' % (CLC_HOST))
+        return conn
     except socket.error, e:
         collectd.error('instance_info plugin: Error connecting to %s - %r'
                        % (CLC_HOST, e))
         return None
+
+def fetch_instance_info(conn):
     log_verbose('Sending info command')
     image=[]
     instance_type=[]
@@ -74,6 +77,19 @@ def fetch_info():
                 image.append(reservation.instances[i].image_id)
 
     return (image, instance_type)
+
+def fetch_cloud_info(conn):
+    """Gather zone information"""
+    zones = conn.get_all_zones('verbose')
+    status=[]
+    for zone in zones:
+        zone_string = '%s\t%s' % (zone.name, zone.state)
+        words = zone_string.split()
+        if len(words) == 3:
+           cluster=words[0]
+        if len(words) == 8:
+           status.append([words[1], int(words[2]), int(words[4]), cluster])
+    return status
 
 def count_items(items):
     """Count instance type / images running"""
@@ -122,16 +138,16 @@ def dispatch_value(info, key, type, type_instance=None):
 
 def read_callback():
     log_verbose('Read callback called')
-    (image, instance_type) = fetch_info()
-    
+    """Establishing connection"""
+    connection = conn_eucalyptus()
+
+    """Getting running instances info"""
+    (image, instance_type) = fetch_instance_info(connection)
     if not image and not instance_type:
         collectd.warning('Eucalyptus plugin: No info received, do you have any instances running ?')
         return
-    
     image = count_items(image)
     instance_type = count_items(instance_type)
-    
-    
     if not 'm1.small' in instance_type:
         instance_type['m1.small'] = 0 
     if not 'c1.medium' in instance_type:
@@ -142,11 +158,19 @@ def read_callback():
         instance_type['m1.xlarge'] = 0 
     if not 'c1.xlarge' in instance_type:
         instance_type['c1.xlarge'] = 0 
-    
     for type in instance_type.keys():
         dispatch_value(instance_type[type], type, 'gauge')
     for emi in image.keys():
         dispatch_value(image[emi], emi, 'gauge' )
+
+    """Getting cloud capacity"""
+    status = fetch_cloud_info(connection)
+    if not status:
+        collectd.warning('Eucalyptus plugin: No Cloud info received, check output of euca-describe-availability-zones verbose')
+        return
+    for info in range(len(status)):
+        dispatch_value(status[info][1],'%s_available_instance_%s' % (status[info][3],  status[info][0]), 'gauge')
+        dispatch_value(status[info][2],'%s_max_instance_%s' % (status[info][3], status[info][0]), 'gauge')
 
 def log_verbose(msg):
     if not VERBOSE_LOGGING:

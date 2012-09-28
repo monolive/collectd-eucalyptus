@@ -5,6 +5,8 @@ A Eucalyptus plugin for collectd using collectd's Python plugin.
 
 Data captured includes:
   - Instances by instance type
+  - Total instances available in cluster by instance type
+  - Max instances available in cluster by instance type
 
 
 Install

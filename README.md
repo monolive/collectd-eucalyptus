@@ -7,6 +7,8 @@ Data captured includes:
   - Instances by instance type
   - Total instances available in cluster by instance type
   - Max instances available in cluster by instance type
+  - Gather Max IP
+  - Gather available IP
 
 
 Install

@@ -67,6 +67,7 @@ def conn_eucalyptus():
         return None
 
 def fetch_instance_info(conn):
+    """ Grab info on running instance """
     log_verbose('Sending info command')
     image=[]
     instance_type=[]
@@ -77,6 +78,17 @@ def fetch_instance_info(conn):
                 image.append(reservation.instances[i].image_id)
 
     return (image, instance_type)
+
+def fetch_ip_info(conn):
+    """Gather IP information"""
+    max_ip=0
+    free_ip=0
+    for ip in conn.get_all_addresses():
+        if  ip.instance_id == 'nobody':
+            free_ip = free_ip + 1 
+        max_ip = max_ip + 1
+    return ( max_ip, free_ip)
+
 
 def fetch_cloud_info(conn):
     """Gather zone information"""
@@ -171,6 +183,13 @@ def read_callback():
         dispatch_value(status[info][1],'%s_available_instance_%s' % (status[info][3],  status[info][0]), 'gauge')
         dispatch_value(status[info][2],'%s_max_instance_%s' % (status[info][3], status[info][0]), 'gauge')
 
+    """Getting IP capacity"""
+    (max_ip, free_ip) = fetch_ip_info(connection)
+    if not max_ip and not free_ip:
+        collectd.warning('Eucalyptus plugin: No Cloud info received, check output of euca-describe-availability-zones verbose')
+        return
+    dispatch_value(max_ip,'max_ip_available','gauge')
+    dispatch_value(free_ip,'ip_available','gauge')
 
 def log_verbose(msg):
     if not VERBOSE_LOGGING:

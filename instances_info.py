@@ -100,7 +100,6 @@ def count_items(items):
     return dict(counts)
 
 
-
 def configure_callback(conf):
     """Receive configuration block"""
     global CLC_HOST, ACCESS_KEY, SECRET_KEY, API_VERSION, VERBOSE_LOGGING
@@ -116,8 +115,7 @@ def configure_callback(conf):
         elif node.key == 'Verbose':
             VERBOSE_LOGGING = bool(node.values[0])
         else:
-            collectd.warning('instance_info plugin: Unknown config key: %s.'
-                             % node.key)
+            collectd.warning('instance_info plugin: Unknown config key: %s.' % node.key)
     log_verbose('Configured with host=%s' % (CLC_HOST))
 
 
@@ -131,6 +129,7 @@ def dispatch_value(info, key, type, type_instance=None):
 
     val = collectd.Values(plugin='instance_info')
     val.type = type
+    val.host = 'eucalyptus'
     val.type_instance = type_instance
     val.values = [value]
     val.dispatch()
@@ -171,6 +170,7 @@ def read_callback():
     for info in range(len(status)):
         dispatch_value(status[info][1],'%s_available_instance_%s' % (status[info][3],  status[info][0]), 'gauge')
         dispatch_value(status[info][2],'%s_max_instance_%s' % (status[info][3], status[info][0]), 'gauge')
+
 
 def log_verbose(msg):
     if not VERBOSE_LOGGING:
